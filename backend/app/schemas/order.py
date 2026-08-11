@@ -9,13 +9,14 @@ class OrderStatusSchema(str, Enum):
     RECIBIDO = "Recibido"
     LAVADORA = "Lavadora"
     SECADORA = "Secadora"
+    PLANCHADO = "Planchado"
     DOBLADO = "Doblado"
     LISTO = "Listo"
 
 
 class OrderItemCreate(BaseModel):
     description: str
-    quantity: int = 1
+    quantity: Decimal = Decimal("1")
     unit_price: Decimal
 
 
@@ -55,3 +56,6 @@ class OrderOut(BaseModel):
     employee_id: int
     created_at: datetime
     items: list[OrderItemOut] = []
+
+class OrderUpdate(BaseModel):
+    items: list[OrderItemCreate]

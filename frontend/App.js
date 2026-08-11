@@ -5,12 +5,13 @@ import { View, ActivityIndicator, StyleSheet } from "react-native";
 
 import { UserProvider, useUser } from "./src/context/UserContext";
 import BottomTabs from "./src/navigation/BottomTabs";
-import LoginScreen from "./src/screens/LoginScreen";
+import FaceLogin from "./src/screens/FaceLogin";
 import { colors } from "./src/constants/colors";
 
 function RootNavigator() {
   const { currentUser, isLoading } = useUser();
 
+  // 1. Mientras lee la memoria, muestra cargando...
   if (isLoading) {
     return (
       <View style={styles.loading}>
@@ -19,9 +20,10 @@ function RootNavigator() {
     );
   }
 
+  // 2. REGLA ESTRICTA: ¿Hay usuario? Muestra BottomTabs. ¿No hay? Muestra FaceLogin.
   return (
     <NavigationContainer>
-      {currentUser ? <BottomTabs /> : <LoginScreen />}
+      {currentUser ? <BottomTabs /> : <FaceLogin />}
     </NavigationContainer>
   );
 }

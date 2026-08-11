@@ -3,7 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Linkin
 import { Camera, Trash2 } from "lucide-react-native";
 
 import { useUser } from "../context/UserContext";
-import { OrdersService } from "../services/api";
+import { OrdersService, CatalogService } from "../services/api";
 import { captureAndCompressEvidence } from "../services/imageService";
 import CustomModal from "../components/CustomModal";
 import { SERVICE_PRICES } from "../constants/catalog";
@@ -14,26 +14,63 @@ export default function NewOrderScreen() {
 
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
-  const [items, setItems] = useState([]); // { description, quantity, unit_price }
+  const [items, setItems] = useState([]); // { description, quantity, unit_price, is_dry_cleaning }
   const [advance, setAdvance] = useState("");
   const [photoBase64, setPhotoBase64] = useState(null);
   const [modal, setModal] = useState({ visible: false });
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
 
-  const total = items.reduce((sum, item) => sum + item.unit_price * item.quantity, 0);
+  const total = items.reduce((sum, item) => sum + item.unit_price * (Number(item.quantity) || 0), 0);
   const advanceNum = Number(advance) || 0;
   const balance = total - advanceNum;
 
   function addServiceItem(service) {
-    setItems((prev) => [...prev, { description: service.name, quantity: 1, unit_price: service.price }]);
+    setItems((prev) => [
+      ...prev,
+      { description: service.name, quantity: 1, unit_price: service.price, is_dry_cleaning: false }
+    ]);
+  }
+
+  // FUNCIÓN PARA TINTORERÍA
+  function addDryCleaningItem(item) {
+    setItems((prev) => [
+      ...prev,
+      { 
+        description: item.name, 
+        quantity: 1, 
+        unit_price: item.price, 
+        is_dry_cleaning: true 
+      }
+    ]);
+    setSearchQuery("");
+    setSearchResults([]);
+  }
+
+  // FUNCIÓN QUE BUSCA EN LA API
+  async function handleSearchDryCleaning(text) {
+    setSearchQuery(text);
+    if (text.trim().length > 1) {
+      const { data } = await CatalogService.searchDryCleaning(text);
+      if (data) setSearchResults(data);
+    } else {
+      setSearchResults([]);
+    }
   }
 
   function removeItem(index) {
     setItems((prev) => prev.filter((_, i) => i !== index));
   }
 
+  function updateItemQuantity(index, text) {
+    // Permite escribir "3." o "" mientras el usuario sigue tecleando;
+    // se valida como número real solo al guardar.
+    const sanitized = text.replace(",", ".").replace(/[^0-9.]/g, "");
+    setItems((prev) => prev.map((item, i) => (i === index ? { ...item, quantity: sanitized } : item)));
+  }
+
   async function handleCapturePhoto() {
     // Compresión obligatoria: 800x800 max, JPEG, calidad 60%, base64.
-    // Ver src/services/imageService.js para la lógica exacta.
     const base64 = await captureAndCompressEvidence();
     if (base64) setPhotoBase64(base64);
   }
@@ -58,13 +95,28 @@ export default function NewOrderScreen() {
       return;
     }
 
+    const invalidItem = items.find((item) => !Number(item.quantity) || Number(item.quantity) <= 0);
+    if (invalidItem) {
+      setModal({
+        visible: true,
+        type: "danger",
+        title: "Cantidad inválida",
+        message: `Revisa la cantidad de "${invalidItem.description}" — debe ser un número mayor a 0.`,
+      });
+      return;
+    }
+
     const { data, error } = await OrdersService.create({
       customer_name: customerName,
       customer_phone: customerPhone,
       advance: advanceNum,
-      is_dry_cleaning: false,
+      is_dry_cleaning: items.some((item) => Boolean(item.is_dry_cleaning)), // <-- Aquí valida si lleva tintorería
       employee_id: currentUser.id,
-      items: items.map(({ description, quantity, unit_price }) => ({ description, quantity, unit_price })),
+      items: items.map(({ description, quantity, unit_price }) => ({
+        description,
+        quantity: Number(quantity),
+        unit_price,
+      })),
       photo_evidence_base64: photoBase64,
     });
 
@@ -73,7 +125,7 @@ export default function NewOrderScreen() {
       return;
     }
 
-    // Abrir WhatsApp preinstalado con folio y saldos (sección 6.3)
+    // Abrir WhatsApp preinstalado con folio y saldos
     const phoneDigits = customerPhone.replace(/\D/g, "");
     const message = encodeURIComponent(buildWhatsAppMessage(data.folio));
     const whatsappUrl = `whatsapp://send?phone=${phoneDigits}&text=${message}`;
@@ -128,16 +180,50 @@ export default function NewOrderScreen() {
         </View>
       </View>
 
-      {/* Nota: el buscador de tintorería (Catalog­Service.searchDryCleaning) se
-          integra igual que addServiceItem, agregando el resultado elegido a `items`. */}
+      {/* BUSCADOR VISUAL DE TINTORERÍA */}
+      <View style={styles.field}>
+        <Text style={styles.label}>Buscar prendas de Tintorería</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Escribe: saco, vestido, edredón..."
+          value={searchQuery}
+          onChangeText={handleSearchDryCleaning}
+        />
+        {searchResults.length > 0 && (
+          <View style={styles.resultsContainer}>
+            {searchResults.map((item) => (
+              <TouchableOpacity
+                key={item.id || item.name}
+                style={styles.resultRow}
+                onPress={() => addDryCleaningItem(item)}
+              >
+                <Text style={styles.resultText}>{item.name}</Text>
+                <Text style={styles.resultPrice}>${item.price}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+      </View>
 
       <View>
         <Text style={styles.label}>Conceptos agregados</Text>
+        <Text style={styles.helperText}>
+          Toca la cantidad para editarla (ej. kilos exactos como 3.5)
+        </Text>
         {items.map((item, index) => (
           <View key={index} style={styles.itemRow}>
-            <Text style={styles.itemText}>
-              {item.quantity} × {item.description} — ${(item.unit_price * item.quantity).toFixed(2)}
-            </Text>
+            <View style={styles.itemLeft}>
+              <TextInput
+                style={styles.quantityInput}
+                value={String(item.quantity)}
+                onChangeText={(text) => updateItemQuantity(index, text)}
+                keyboardType="decimal-pad"
+                selectTextOnFocus
+              />
+              <Text style={styles.itemText}>
+                × {item.description} — ${(item.unit_price * (Number(item.quantity) || 0)).toFixed(2)}
+              </Text>
+            </View>
             <TouchableOpacity onPress={() => removeItem(index)}>
               <Trash2 size={18} color={colors.danger} />
             </TouchableOpacity>
@@ -214,6 +300,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   chipText: { color: colors.blue700, fontSize: 12, fontWeight: "600" },
+  helperText: { color: colors.textMuted, fontSize: 11, marginTop: 4, marginBottom: 4 },
   itemRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -223,7 +310,20 @@ const styles = StyleSheet.create({
     padding: 10,
     marginTop: 6,
   },
-  itemText: { color: colors.text, fontSize: 13 },
+  itemLeft: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1 },
+  quantityInput: {
+    backgroundColor: colors.slate50,
+    borderWidth: 1,
+    borderColor: colors.blue500,
+    borderRadius: radii.sm,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    width: 56,
+    textAlign: "center",
+    fontWeight: "700",
+    color: colors.blue700,
+  },
+  itemText: { color: colors.text, fontSize: 13, flexShrink: 1 },
   photoButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -256,4 +356,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   saveButtonText: { color: colors.white, fontWeight: "700" },
+  // Estilos del buscador de tintorería
+  resultsContainer: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    marginTop: 4,
+    maxHeight: 150,
+  },
+  resultRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.slate50,
+  },
+  resultText: { fontSize: 13, color: colors.text, fontWeight: "500" },
+  resultPrice: { fontSize: 13, color: colors.blue700, fontWeight: "700" },
 });

@@ -1,15 +1,21 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, FlatList, StyleSheet, RefreshControl } from "react-native";
+import { View, Text, FlatList, StyleSheet, RefreshControl, TouchableOpacity } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 
 import { OrdersService } from "../services/api";
 import CustomModal from "../components/CustomModal";
 import { colors, radii } from "../constants/colors";
 
+// 1. Importamos tu contexto de usuario
+import { useUser } from "../context/UserContext";
+
 export default function DashboardScreen() {
   const [summary, setSummary] = useState({ today_income: 0, recent_orders: [] });
   const [refreshing, setRefreshing] = useState(false);
   const [errorModal, setErrorModal] = useState(false);
+
+  // 2. Sacamos a la empleada activa y la función para borrar la memoria (logout)
+  const { currentUser, logout } = useUser();
 
   const load = useCallback(async () => {
     const { data, error } = await OrdersService.dashboardSummary();
@@ -34,6 +40,16 @@ export default function DashboardScreen() {
 
   return (
     <View style={styles.container}>
+      
+      {/* --- NUEVO: Fila de bienvenida y botón de Cerrar Sesión --- */}
+      <View style={styles.headerRow}>
+        <Text style={styles.greeting}>¡Hola, {currentUser?.name || "Empleada"}! 👋</Text>
+        <TouchableOpacity style={styles.logoutButton} onPress={logout}>
+          <Text style={styles.logoutButtonText}>Salir</Text>
+        </TouchableOpacity>
+      </View>
+      {/* ----------------------------------------------------------- */}
+
       <View style={styles.incomeCard}>
         <Text style={styles.incomeLabel}>Ingresos de hoy</Text>
         <Text style={styles.incomeValue}>${Number(summary.today_income).toFixed(2)}</Text>
@@ -75,6 +91,33 @@ export default function DashboardScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.slate50, padding: 16 },
+  
+  // Estilos nuevos para la barra de arriba
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    marginTop: 10,
+  },
+  greeting: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.text,
+  },
+  logoutButton: {
+    backgroundColor: '#F44336', // Rojo alerta
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: radii.md,
+  },
+  logoutButtonText: {
+    color: colors.white,
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  // Fin de estilos nuevos
+
   incomeCard: {
     backgroundColor: colors.blue600,
     borderRadius: radii.lg,

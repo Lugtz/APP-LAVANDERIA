@@ -13,13 +13,15 @@ class Settings:
     DB_DRIVER: str = os.getenv("DB_DRIVER", "ODBC Driver 17 for SQL Server")
     ALLOWED_ORIGINS: list[str] = os.getenv("ALLOWED_ORIGINS", "*").split(",")
 
+    # PIN requerido para poder enrolar el rostro de una nueva empleada
+    # (evita que cualquiera con acceso a la computadora agregue rostros).
+    ADMIN_ENROLL_PIN: str = os.getenv("ADMIN_ENROLL_PIN", "")
+
     @property
     def DATABASE_URL(self) -> str:
-        clean_driver = self.DB_DRIVER.replace("{", "").replace("}", "").strip()
-        
         odbc_str = (
-            f"DRIVER={{{clean_driver}}};"
-            f"SERVER={self.DB_SERVER};"
+            f"DRIVER={{{self.DB_DRIVER}}};"
+            f"SERVER={self.DB_SERVER},1433;"
             f"DATABASE={self.DB_NAME};"
             f"UID={self.DB_USER};"
             f"PWD={self.DB_PASSWORD};"

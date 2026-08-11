@@ -5,6 +5,12 @@ backend/**/__pycache__/
 backend/*.pyc
 backend/.env
 
+# Fotos de referencia de empleadas (datos biométricos, nunca a git).
+# enroll_face.py crea una carpeta por persona (face_data/<nombre>/) —
+# ignoramos todo el contenido excepto el README con instrucciones.
+backend/app/face_data/**
+!backend/app/face_data/README.md
+
 # --- Frontend (Expo / React Native) ---
 frontend/node_modules/
 frontend/.expo/
@@ -25,3 +31,4 @@ Thumbs.db
 .vscode/
 .idea/
 *.log
+venv/

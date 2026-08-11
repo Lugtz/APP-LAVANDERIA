@@ -21,8 +21,10 @@ class OrderStatus(str, enum.Enum):
     RECIBIDO = "Recibido"
     LAVADORA = "Lavadora"
     SECADORA = "Secadora"
+    PLANCHADO = "Planchado"
     DOBLADO = "Doblado"
     LISTO = "Listo"
+    ENTREGADO = "Entregado"
 
 
 class Order(Base):
@@ -72,7 +74,7 @@ class OrderItem(Base):
     order_id = Column(Integer, ForeignKey("orders.id"), nullable=False)
 
     description = Column(String(150), nullable=False)
-    quantity = Column(Integer, nullable=False, default=1)
+    quantity = Column(Numeric(10, 2), nullable=False, default=1)
     unit_price = Column(Numeric(10, 2), nullable=False)
     subtotal = Column(Numeric(10, 2), nullable=False)
 

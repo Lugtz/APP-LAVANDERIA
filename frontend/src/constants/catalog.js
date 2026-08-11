@@ -23,6 +23,6 @@ export const EXPENSE_CATEGORIES = [
   "Otro",
 ];
 
-export const ORDER_STATUSES = ["Recibido", "Lavadora", "Secadora", "Doblado", "Listo"];
+export const ORDER_STATUSES = ["Recibido", "Lavadora", "Secadora","Planchado", "Doblado", "Listo"];
 
 export const EMPLOYEES = ["Marian", "Lupita"];

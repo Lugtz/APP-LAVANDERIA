@@ -75,6 +75,18 @@ export const OrdersService = {
       fetchAPI(`/orders/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) })
     ),
   dashboardSummary: () => apiRequest(() => fetchAPI("/orders/dashboard/summary")),
+  
+  // NUEVO: Cancelar / Eliminar un pedido
+  delete: (id) => 
+    apiRequest(() => fetchAPI(`/orders/${id}`, { method: "DELETE" })),
+  
+  // NUEVO: Editar un pedido (actualizar prendas/kilos)
+  update: (id, items) => 
+    apiRequest(() => fetchAPI(`/orders/${id}`, { method: "PUT", body: JSON.stringify({ items }) })),
+
+  // NUEVO: Entregar y cobrar restante
+  deliver: (id) =>
+    apiRequest(() => fetchAPI(`/orders/${id}/deliver`, { method: "POST" })),
 };
 
 export const ExpensesService = {

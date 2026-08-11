@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.order import Order, OrderItem, OrderStatus
 from app.schemas.order import OrderCreate, OrderOut, OrderStatusUpdate
+from app.schemas.order import OrderCreate, OrderOut, OrderStatusUpdate, OrderUpdate
 
 router = APIRouter(prefix="/orders", tags=["Pedidos"])
 
@@ -70,7 +71,7 @@ def list_orders(
     if status:
         query = query.filter(Order.status == status)
     if dry_cleaning_only:
-        query = query.filter(Order.is_dry_cleaning.is_(True))
+        query = query.filter(Order.is_dry_cleaning == True)
     return query.order_by(Order.created_at.desc()).all()
 
 
@@ -118,4 +119,74 @@ def dashboard_summary(db: Session = Depends(get_db)):
     return {
         "today_income": today_income,
         "recent_orders": recent_orders,
+    }
+@router.delete("/{order_id}")
+def delete_order(order_id: int, db: Session = Depends(get_db)):
+    """Elimina un pedido por completo (Cancelar)."""
+    order = db.get(Order, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+    
+    db.delete(order)
+    db.commit()
+    return {"detail": "Pedido cancelado y eliminado correctamente"}
+
+
+@router.put("/{order_id}", response_model=OrderOut)
+def update_order(order_id: int, payload: OrderUpdate, db: Session = Depends(get_db)):
+    """Edita un pedido: reemplaza la ropa y recalcula los totales."""
+    order = db.get(Order, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+
+    # 1. Borramos la ropa viejita de este pedido
+    db.query(OrderItem).filter(OrderItem.order_id == order_id).delete()
+
+    # 2. Calculamos el nuevo total con la ropa actualizada
+    new_total = sum(item.unit_price * item.quantity for item in payload.items)
+    new_balance = new_total - order.advance
+
+    # 3. Actualizamos los números del pedido
+    order.total = new_total
+    order.balance = new_balance
+
+    # 4. Metemos la ropa nueva a la base de datos
+    for item in payload.items:
+        order.items.append(
+            OrderItem(
+                description=item.description,
+                quantity=item.quantity,
+                unit_price=item.unit_price,
+                subtotal=item.unit_price * item.quantity,
+            )
+        )
+
+    db.commit()
+    db.refresh(order)
+    return order
+@router.post("/{order_id}/deliver")
+def deliver_order(order_id: int, db: Session = Depends(get_db)):
+    order = db.query(models.Order).filter(models.Order.id == order_id).first()
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+
+    if order.status == models.OrderStatus.ENTREGADO:
+        raise HTTPException(status_code=400, detail="El pedido ya fue entregado anteriormente")
+
+    # Guardamos cuánto se cobró en este momento (la resta)
+    monto_cobrado = order.balance
+    
+    # Actualizamos el pedido
+    order.status = models.OrderStatus.ENTREGADO
+    order.balance = 0 # La resta queda en 0 porque ya pagó
+    # Opcional: order.advance = order.total (Dependiendo de cómo hagas tu contabilidad)
+
+    db.commit()
+    db.refresh(order)
+    
+    return {
+        "message": "Pedido entregado con éxito", 
+        "cobrado": monto_cobrado, 
+        "order": order
     }
